@@ -1,6 +1,6 @@
 # GateKeep — Private Allowlist Access dApp on Midnight
 
-[![CI Pipeline](https://github.com/gatekeep-midnight/gatekeep/actions/workflows/ci.yml/badge.svg)](https://github.com/gatekeep-midnight/gatekeep/actions/workflows/ci.yml)
+[![CI Pipeline](https://github.com/Nandini-Jadhav1/Gatekeep/actions/workflows/ci.yml/badge.svg)](https://github.com/Nandini-Jadhav1/Gatekeep/actions/workflows/ci.yml)
 
 **GateKeep** is a production-grade, privacy-preserving dApp built on the Midnight Network using Compact zero-knowledge smart contracts. It enables organizers to grant gated access to exclusive resources (events, token-gated drops, private Discord/Telegram invites, early product access) without publishing member identities, secret credentials, or wallet addresses on-chain.
 
@@ -8,6 +8,7 @@
 
 ## Live Demo & Deployment Information
 
+- **GitHub Repository**: [https://github.com/Nandini-Jadhav1/Gatekeep](https://github.com/Nandini-Jadhav1/Gatekeep)
 - **Live Frontend Demo**: [https://gatekeep-midnight.vercel.app](https://gatekeep-midnight.vercel.app)
 - **Deployed Testnet Contract Address**: `0x4f8e3b29c17d92a10b4f62e8315a91d295034c71829e1a2f4c6b8d0e2a4b6c8`
 - **Network**: Midnight Testnet (Preprod)
@@ -104,8 +105,8 @@ GateKeep includes a 5-scenario Vitest test suite executing simulated Compact ZK 
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/gatekeep-midnight/gatekeep.git
-cd gatekeep
+git clone https://github.com/Nandini-Jadhav1/Gatekeep.git
+cd Gatekeep
 
 # 2. Install root dependencies
 npm install
