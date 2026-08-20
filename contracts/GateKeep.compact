@@ -9,24 +9,26 @@ import CompactStandardLibrary;
  * PRIVACY SPECIFICATION (PUBLIC VS PRIVATE DATA SPLIT):
  *
  * PUBLIC LEDGER STATE (On-Chain):
- *   - organizerPublicKey: Bytes<32> -> Public hash identity of contract organizer
- *   - commitmentRoot: Bytes<32>     -> Merkle root / aggregate commitment state hash
- *   - memberCount: Uint<32>        -> Total count of allowlisted members added
- *   - verificationCount: Uint<32>  -> Public count of verified private access claims
- *   - gatedResourceHash: Bytes<32> -> Hash anchor of encrypted gated resource payload
+ *   - organizerPublicKey: Bytes<32>            -> Authorized Organizer Public Hash
+ *   - allowedCommitments: Map<Bytes<32>, Bool> -> Set of allowlisted member commitments
+ *   - usedNullifiers: Map<Bytes<32>, Bool>     -> Set of spent nullifiers (double-claim check)
+ *   - memberCount: Uint<32>                    -> Public member counter
+ *   - verificationCount: Uint<32>              -> Public verified access counter
+ *   - gatedResourceHash: Bytes<32>             -> Hash anchor of encrypted gated resource payload
  *
  * PRIVATE WITNESSES (Off-Chain / Proved in ZK):
- *   - secret: Bytes<32>            -> Private invite secret / access token (NEVER revealed)
- *   - salt: Bytes<32>              -> Private secret salt for identity commitment
+ *   - secret: Bytes<32>                        -> Member secret invite code (NEVER revealed)
+ *   - salt: Bytes<32>                          -> Member salt key
  *
  * DISCLOSED VALUES (Circuit Outputs):
- *   - nullifier: Bytes<32>         -> Derived nullifier preventing duplicate access claims
+ *   - nullifier: Bytes<32>                     -> Derived nullifier preventing duplicate access claims
  * ============================================================================
  */
 
-// Public Ledger State
+// Public Ledger State Maps & Variables
 export ledger organizerPublicKey: Bytes<32>;
-export ledger commitmentRoot: Bytes<32>;
+export ledger allowedCommitments: Map<Bytes<32>, Boolean>;
+export ledger usedNullifiers: Map<Bytes<32>, Boolean>;
 export ledger memberCount: Uint<32>;
 export ledger verificationCount: Uint<32>;
 export ledger gatedResourceHash: Bytes<32>;
@@ -41,7 +43,6 @@ export struct MemberWitness {
 export circuit initialize(newOrganizerKey: Bytes<32>, resourceHash: Bytes<32>): [] {
     organizerPublicKey = disclose(newOrganizerKey);
     gatedResourceHash = disclose(resourceHash);
-    commitmentRoot = pad(32, "0");
     memberCount = 0;
     verificationCount = 0;
 }
@@ -55,27 +56,35 @@ export circuit addMember(organizerSecret: Bytes<32>, commitment: Bytes<32>): [] 
     // Assert commitment non-empty
     require commitment != pad(32, "0") "Invalid member commitment";
 
-    // Update commitment root state hash and increment public member counter
-    commitmentRoot = persistent_hash<[Bytes<32>, Bytes<32>]>([commitmentRoot, commitment]);
+    // Insert commitment into on-chain allowedCommitments Map ledger
+    allowedCommitments.insert(commitment, true);
     memberCount = memberCount + 1;
 }
 
 // Circuit 3: Verify Private Membership Access and Disclose Unlinkable Nullifier
 export circuit verifyAccess(witness: MemberWitness, domainSeparator: Bytes<32>): Bytes<32> {
-    // 1. Assert non-empty member secret
+    // 1. Assert non-empty member secret & salt
     require witness.secret != pad(32, "0") "Invalid member secret key";
     require witness.salt != pad(32, "0") "Invalid member salt";
 
     // 2. Compute member commitment from witness secret & salt
     const memberCommitment = persistent_hash<[Bytes<32>, Bytes<32>]>([witness.secret, witness.salt]);
-    require memberCommitment != pad(32, "0") "Membership verification failed: Invalid member commitment";
+    
+    // 3. Enforce membership constraint against on-chain allowedCommitments Map ledger
+    require allowedCommitments.member(memberCommitment) "Membership verification failed: Commitment not found in allowlist";
 
-    // 3. Compute unique, unlinkable nullifier for double-claim prevention: hash(secret, domainSeparator)
+    // 4. Compute unique, unlinkable nullifier: hash(secret, domainSeparator)
     const nullifier = persistent_hash<[Bytes<32>, Bytes<32>]>([witness.secret, domainSeparator]);
 
-    // 4. Increment verified access counter on ledger
+    // 5. Enforce nullifier uniqueness constraint against on-chain usedNullifiers Map ledger
+    require !usedNullifiers.member(nullifier) "Double access rejected: Nullifier has already been claimed";
+
+    // 6. Record nullifier on-chain to prevent duplicate access claims
+    usedNullifiers.insert(nullifier, true);
+
+    // 7. Increment verified access counter on ledger
     verificationCount = verificationCount + 1;
 
-    // 5. Disclose and return derived nullifier to public state
+    // 8. Disclose and return derived nullifier to public state
     return disclose(nullifier);
 }

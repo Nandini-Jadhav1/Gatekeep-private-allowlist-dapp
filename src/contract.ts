@@ -1,13 +1,14 @@
 import { GateKeepContract, GateKeepLedger, MemberWitness } from '../contracts/managed/GateKeep/index.js';
-import { deriveCommitment, deriveNullifier, deriveOrganizerKey, sha256, toHex } from './merkle.js';
+import { deriveCommitment, sha256, toHex } from './merkle.js';
 
 export interface GateKeepState {
   organizerPublicKeyHex: string;
-  commitmentRootHex: string;
+  allowedCommitmentsCount: number;
+  usedNullifiersCount: number;
   memberCount: number;
   verificationCount: number;
   gatedResourceHashHex: string;
-  usedNullifiersCount: number;
+  commitmentRootHex: string;
 }
 
 export class GateKeepClient {
@@ -19,14 +20,15 @@ export class GateKeepClient {
   }
 
   async initialize(organizerSecret: string, gatedResourcePayload: string): Promise<void> {
-    const { publicKeyBytes } = deriveOrganizerKey(organizerSecret);
+    const secretBytes = sha256(organizerSecret);
+    const publicKeyBytes = sha256(secretBytes);
     const resourceHash = sha256(gatedResourcePayload);
     this.gatedResourcePayload = gatedResourcePayload;
     await this.instance.initialize(publicKeyBytes, resourceHash);
   }
 
   async addMember(organizerSecret: string, memberSecret: string, memberSalt: string): Promise<string> {
-    const { secretBytes } = deriveOrganizerKey(organizerSecret);
+    const secretBytes = sha256(organizerSecret);
     const commitment = deriveCommitment(memberSecret, memberSalt);
     await this.instance.addMember(secretBytes, commitment);
     return toHex(commitment);
@@ -54,13 +56,15 @@ export class GateKeepClient {
 
   getLedgerState(): GateKeepState {
     const ledger: GateKeepLedger = this.instance.ledger;
+    const firstCommitment = Array.from(ledger.allowedCommitments)[0] || '0000000000000000000000000000000000000000000000000000000000000000';
     return {
       organizerPublicKeyHex: toHex(ledger.organizerPublicKey),
-      commitmentRootHex: toHex(ledger.commitmentRoot),
+      allowedCommitmentsCount: ledger.allowedCommitments.size,
+      usedNullifiersCount: ledger.usedNullifiers.size,
       memberCount: Number(ledger.memberCount),
       verificationCount: Number(ledger.verificationCount),
       gatedResourceHashHex: toHex(ledger.gatedResourceHash),
-      usedNullifiersCount: ledger.usedNullifiers.size,
+      commitmentRootHex: firstCommitment,
     };
   }
 }

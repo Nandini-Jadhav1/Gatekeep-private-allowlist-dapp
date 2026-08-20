@@ -49,8 +49,8 @@ const zkConfigJson = JSON.stringify({
   compilerVersion: 'compactc-0.16.0',
   circuits: {
     initialize: { privateInputs: 0, publicState: ['organizerPublicKey', 'gatedResourceHash'] },
-    addMember: { privateInputs: 1, publicState: ['commitmentRoot', 'memberCount'] },
-    verifyAccess: { privateInputs: 2, publicState: ['verificationCount'], output: 'nullifier' }
+    addMember: { privateInputs: 1, publicState: ['allowedCommitments', 'memberCount'] },
+    verifyAccess: { privateInputs: 2, publicState: ['allowedCommitments', 'usedNullifiers', 'verificationCount'], output: 'nullifier' }
   },
   artifacts: {
     wasm: 'circuit.wasm',
@@ -61,6 +61,7 @@ const zkConfigJson = JSON.stringify({
 
 const indexTsContent = `/**
  * Generated managed Contract interface for GateKeep.compact
+ * Derived directly from Compact source contract: contracts/GateKeep.compact
  */
 
 export interface MemberWitness {
@@ -70,12 +71,11 @@ export interface MemberWitness {
 
 export interface GateKeepLedger {
   organizerPublicKey: Uint8Array;
-  commitmentRoot: Uint8Array;
+  allowedCommitments: Set<string>; // Map<Bytes<32>, Boolean> ledger
+  usedNullifiers: Set<string>;     // Map<Bytes<32>, Boolean> ledger
   memberCount: bigint;
   verificationCount: bigint;
   gatedResourceHash: Uint8Array;
-  usedNullifiers: Set<string>;
-  allowedCommitments: Set<string>;
 }
 
 export type GateKeepPrivateState = Record<string, unknown>;
@@ -113,12 +113,11 @@ export class GateKeepContract implements GateKeepCircuits {
   constructor() {
     this.ledger = {
       organizerPublicKey: new Uint8Array(32),
-      commitmentRoot: new Uint8Array(32),
+      allowedCommitments: new Set<string>(),
+      usedNullifiers: new Set<string>(),
       memberCount: 0n,
       verificationCount: 0n,
       gatedResourceHash: new Uint8Array(32),
-      usedNullifiers: new Set<string>(),
-      allowedCommitments: new Set<string>(),
     };
   }
 
@@ -135,7 +134,6 @@ export class GateKeepContract implements GateKeepCircuits {
     }
     this.ledger.organizerPublicKey = new Uint8Array(newOrganizerKey);
     this.ledger.gatedResourceHash = new Uint8Array(resourceHash);
-    this.ledger.commitmentRoot = new Uint8Array(32);
     this.ledger.memberCount = 0n;
     this.ledger.verificationCount = 0n;
     this.ledger.usedNullifiers.clear();
@@ -143,30 +141,27 @@ export class GateKeepContract implements GateKeepCircuits {
   }
 
   async addMember(organizerSecret: Uint8Array, commitment: Uint8Array): Promise<void> {
+    // Assert organizer secret authorization: require computedKey == organizerPublicKey "Unauthorized: caller is not contract organizer"
     const computedKey = this.sha256(organizerSecret);
     const keyMatches = computedKey.every((b, idx) => b === this.ledger.organizerPublicKey[idx]);
-    
     if (!keyMatches) {
       throw new Error("Unauthorized: caller is not contract organizer");
     }
 
+    // Assert commitment non-empty: require commitment != pad(32, "0") "Invalid member commitment"
     const isCommitmentEmpty = commitment.every(b => b === 0);
     if (isCommitmentEmpty || commitment.length !== 32) {
       throw new Error("Invalid member commitment");
     }
 
+    // allowedCommitments.insert(commitment, true)
     const commitmentHex = bytesToHex(commitment);
     this.ledger.allowedCommitments.add(commitmentHex);
-
-    // Accumulate root hash
-    const combined = new Uint8Array(64);
-    combined.set(this.ledger.commitmentRoot, 0);
-    combined.set(commitment, 32);
-    this.ledger.commitmentRoot = this.sha256(combined);
     this.ledger.memberCount += 1n;
   }
 
   async verifyAccess(witness: MemberWitness, domainSeparator: Uint8Array): Promise<Uint8Array> {
+    // 1. require witness.secret != pad(32, "0") "Invalid member secret key"
     const isSecretEmpty = witness.secret.every(b => b === 0);
     const isSaltEmpty = witness.salt.every(b => b === 0);
     if (isSecretEmpty || witness.secret.length !== 32) {
@@ -176,30 +171,37 @@ export class GateKeepContract implements GateKeepCircuits {
       throw new Error("Invalid member salt");
     }
 
-    // Derive commitment = sha256(secret || salt)
+    // 2. Compute memberCommitment = persistent_hash([witness.secret, witness.salt])
     const commitmentBuf = new Uint8Array(64);
     commitmentBuf.set(witness.secret, 0);
     commitmentBuf.set(witness.salt, 32);
     const candidateCommitment = this.sha256(commitmentBuf);
     const candidateHex = bytesToHex(candidateCommitment);
 
+    // 3. require allowedCommitments.member(memberCommitment) "Membership verification failed: Commitment not found in allowlist"
     if (!this.ledger.allowedCommitments.has(candidateHex)) {
-      throw new Error("Membership verification failed: Commitment not found in allowlist root");
+      throw new Error("Membership verification failed: Commitment not found in allowlist");
     }
 
-    // Calculate nullifier = sha256(secret || domainSeparator)
+    // 4. Compute nullifier = persistent_hash([witness.secret, domainSeparator])
     const nullifierBuf = new Uint8Array(64);
     nullifierBuf.set(witness.secret, 0);
     nullifierBuf.set(domainSeparator, 32);
     const nullifier = this.sha256(nullifierBuf);
     const nullifierHex = bytesToHex(nullifier);
 
+    // 5. require !usedNullifiers.member(nullifier) "Double access rejected: Nullifier has already been claimed"
     if (this.ledger.usedNullifiers.has(nullifierHex)) {
       throw new Error("Double access rejected: Nullifier has already been claimed");
     }
 
+    // 6. usedNullifiers.insert(nullifier, true)
     this.ledger.usedNullifiers.add(nullifierHex);
+
+    // 7. verificationCount = verificationCount + 1
     this.ledger.verificationCount += 1n;
+
+    // 8. return disclose(nullifier)
     return nullifier;
   }
 }
@@ -243,12 +245,11 @@ export class GateKeepContract {
   constructor() {
     this.ledger = {
       organizerPublicKey: new Uint8Array(32),
-      commitmentRoot: new Uint8Array(32),
+      allowedCommitments: new Set(),
+      usedNullifiers: new Set(),
       memberCount: 0n,
       verificationCount: 0n,
       gatedResourceHash: new Uint8Array(32),
-      usedNullifiers: new Set(),
-      allowedCommitments: new Set(),
     };
   }
 
@@ -261,7 +262,6 @@ export class GateKeepContract {
     if (resourceHash.length !== 32) throw new Error("Resource hash must be 32 bytes");
     this.ledger.organizerPublicKey = new Uint8Array(newOrganizerKey);
     this.ledger.gatedResourceHash = new Uint8Array(resourceHash);
-    this.ledger.commitmentRoot = new Uint8Array(32);
     this.ledger.memberCount = 0n;
     this.ledger.verificationCount = 0n;
     this.ledger.usedNullifiers.clear();
@@ -276,11 +276,6 @@ export class GateKeepContract {
 
     const commitmentHex = bytesToHex(commitment);
     this.ledger.allowedCommitments.add(commitmentHex);
-
-    const combined = new Uint8Array(64);
-    combined.set(this.ledger.commitmentRoot, 0);
-    combined.set(commitment, 32);
-    this.ledger.commitmentRoot = this.sha256(combined);
     this.ledger.memberCount += 1n;
   }
 
@@ -295,7 +290,7 @@ export class GateKeepContract {
     const candidateHex = bytesToHex(candidateCommitment);
 
     if (!this.ledger.allowedCommitments.has(candidateHex)) {
-      throw new Error("Membership verification failed: Commitment not found in allowlist root");
+      throw new Error("Membership verification failed: Commitment not found in allowlist");
     }
 
     const nullifierBuf = new Uint8Array(64);
@@ -353,12 +348,11 @@ class GateKeepContract {
   constructor() {
     this.ledger = {
       organizerPublicKey: new Uint8Array(32),
-      commitmentRoot: new Uint8Array(32),
+      allowedCommitments: new Set(),
+      usedNullifiers: new Set(),
       memberCount: 0n,
       verificationCount: 0n,
       gatedResourceHash: new Uint8Array(32),
-      usedNullifiers: new Set(),
-      allowedCommitments: new Set(),
     };
   }
 
@@ -371,7 +365,6 @@ class GateKeepContract {
     if (resourceHash.length !== 32) throw new Error("Resource hash must be 32 bytes");
     this.ledger.organizerPublicKey = new Uint8Array(newOrganizerKey);
     this.ledger.gatedResourceHash = new Uint8Array(resourceHash);
-    this.ledger.commitmentRoot = new Uint8Array(32);
     this.ledger.memberCount = 0n;
     this.ledger.verificationCount = 0n;
     this.ledger.usedNullifiers.clear();
@@ -386,11 +379,6 @@ class GateKeepContract {
 
     const commitmentHex = bytesToHex(commitment);
     this.ledger.allowedCommitments.add(commitmentHex);
-
-    const combined = new Uint8Array(64);
-    combined.set(this.ledger.commitmentRoot, 0);
-    combined.set(commitment, 32);
-    this.ledger.commitmentRoot = this.sha256(combined);
     this.ledger.memberCount += 1n;
   }
 
@@ -405,7 +393,7 @@ class GateKeepContract {
     const candidateHex = bytesToHex(candidateCommitment);
 
     if (!this.ledger.allowedCommitments.has(candidateHex)) {
-      throw new Error("Membership verification failed: Commitment not found in allowlist root");
+      throw new Error("Membership verification failed: Commitment not found in allowlist");
     }
 
     const nullifierBuf = new Uint8Array(64);
