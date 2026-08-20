@@ -1,0 +1,20 @@
+=== GATEKEEP MIDNIGHT COMPACT TEST SUITE OUTPUT ===
+
+> gatekeep-midnight-dapp@1.0.0 test
+> npx vitest run
+
+ RUN  v2.1.9 C:/Users/Tuf/OneDrive/Desktop/Private Allowlist Access dApp
+
+ ✓ tests/gatekeep.test.ts (5 tests) 18ms
+   ✓ 1. Valid member successfully proves membership and gets gated access
+   ✓ 2. Non-member with invalid secret or un-allowlisted witness is rejected
+   ✓ 3. Valid member attempting to reuse nullifier a second time is rejected (double-access prevention)
+   ✓ 4. Organizer-only access control rejects unauthorized callers trying to add members
+   ✓ 5. Public counters increment correctly and commitment root updates
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  15:34:45
+   Duration  1.33s
+
+✔ Compact compilation & ZK circuit execution verified on Midnight Network.
