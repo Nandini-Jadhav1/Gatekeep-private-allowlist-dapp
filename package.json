@@ -1,0 +1,37 @@
+{
+  "name": "gatekeep-midnight-dapp",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "GateKeep — Private Allowlist Access dApp built on Midnight Network using Compact ZK Smart Contracts",
+  "author": "Midnight Developer",
+  "license": "MIT",
+  "scripts": {
+    "compile": "npx tsx scripts/compile-contract.ts",
+    "build": "npm run compile && npm run frontend:build",
+    "test": "npx vitest run",
+    "test:watch": "npx vitest",
+    "frontend:dev": "npm run --prefix frontend dev",
+    "frontend:build": "npm --prefix frontend install && npm run --prefix frontend build"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/compact-runtime": "^0.16.0",
+    "@midnight-ntwrk/midnight-js-contracts": "^4.1.1",
+    "@midnight-ntwrk/midnight-js-types": "^4.1.1",
+    "@midnight-ntwrk/midnight-js-utils": "^4.1.1",
+    "lucide-react": "^0.475.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "tsx": "^4.23.1",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
