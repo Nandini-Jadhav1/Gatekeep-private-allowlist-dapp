@@ -3,7 +3,11 @@ import * as path from 'node:path';
 
 console.log('=== Compiling Compact Smart Contract: GateKeep.compact ===');
 
-const contractPath = path.resolve('contracts/GateKeep.compact');
+const baseDir = fs.existsSync(path.resolve('contracts/GateKeep.compact'))
+  ? path.resolve('.')
+  : path.resolve('..');
+
+const contractPath = path.resolve(baseDir, 'contracts/GateKeep.compact');
 
 if (!fs.existsSync(contractPath)) {
   console.error(`Error: Smart contract not found at ${contractPath}`);
@@ -11,9 +15,9 @@ if (!fs.existsSync(contractPath)) {
 }
 
 const targetDirs = [
-  path.resolve('contracts/managed/GateKeep'),
-  path.resolve('managed/GateKeep'),
-  path.resolve('frontend/src/contracts/managed/GateKeep')
+  path.resolve(baseDir, 'contracts/managed/GateKeep'),
+  path.resolve(baseDir, 'managed/GateKeep'),
+  path.resolve(baseDir, 'frontend/src/contracts/managed/GateKeep')
 ];
 
 // Minimal WebAssembly header for ZK circuit module
