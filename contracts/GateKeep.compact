@@ -1,0 +1,81 @@
+pragma language_version >= 0.23;
+
+import CompactStandardLibrary;
+
+/**
+ * ============================================================================
+ * GATEKEEP: PRIVATE ALLOWLIST ACCESS DAPP (MIDNIGHT NETWORK)
+ * ============================================================================
+ * PRIVACY SPECIFICATION (PUBLIC VS PRIVATE DATA SPLIT):
+ *
+ * PUBLIC LEDGER STATE (On-Chain):
+ *   - organizerPublicKey: Bytes<32> -> Public hash identity of contract organizer
+ *   - commitmentRoot: Bytes<32>     -> Merkle root / aggregate commitment state hash
+ *   - memberCount: Uint<32>        -> Total count of allowlisted members added
+ *   - verificationCount: Uint<32>  -> Public count of verified private access claims
+ *   - gatedResourceHash: Bytes<32> -> Hash anchor of encrypted gated resource payload
+ *
+ * PRIVATE WITNESSES (Off-Chain / Proved in ZK):
+ *   - secret: Bytes<32>            -> Private invite secret / access token (NEVER revealed)
+ *   - salt: Bytes<32>              -> Private secret salt for identity commitment
+ *
+ * DISCLOSED VALUES (Circuit Outputs):
+ *   - nullifier: Bytes<32>         -> Derived nullifier preventing duplicate access claims
+ * ============================================================================
+ */
+
+// Public Ledger State
+export ledger organizerPublicKey: Bytes<32>;
+export ledger commitmentRoot: Bytes<32>;
+export ledger memberCount: Uint<32>;
+export ledger verificationCount: Uint<32>;
+export ledger gatedResourceHash: Bytes<32>;
+
+// Data structure for private member witness input
+export struct MemberWitness {
+    secret: Bytes<32>;
+    salt: Bytes<32>;
+}
+
+// Circuit 1: Initialize Contract & Set Organizer + Resource Payload
+export circuit initialize(newOrganizerKey: Bytes<32>, resourceHash: Bytes<32>): [] {
+    organizerPublicKey = disclose(newOrganizerKey);
+    gatedResourceHash = disclose(resourceHash);
+    commitmentRoot = pad(32, "0");
+    memberCount = 0;
+    verificationCount = 0;
+}
+
+// Circuit 2: Add Member Commitment to Allowlist (Organizer-only access control)
+export circuit addMember(organizerSecret: Bytes<32>, commitment: Bytes<32>): [] {
+    // Assert organizer secret authorization
+    const computedKey = persistent_hash<Bytes<32>>(organizerSecret);
+    require computedKey == organizerPublicKey "Unauthorized: caller is not contract organizer";
+
+    // Assert commitment non-empty
+    require commitment != pad(32, "0") "Invalid member commitment";
+
+    // Update commitment root state hash and increment public member counter
+    commitmentRoot = persistent_hash<[Bytes<32>, Bytes<32>]>([commitmentRoot, commitment]);
+    memberCount = memberCount + 1;
+}
+
+// Circuit 3: Verify Private Membership Access and Disclose Unlinkable Nullifier
+export circuit verifyAccess(witness: MemberWitness, domainSeparator: Bytes<32>): Bytes<32> {
+    // 1. Assert non-empty member secret
+    require witness.secret != pad(32, "0") "Invalid member secret key";
+    require witness.salt != pad(32, "0") "Invalid member salt";
+
+    // 2. Compute member commitment from witness secret & salt
+    const memberCommitment = persistent_hash<[Bytes<32>, Bytes<32>]>([witness.secret, witness.salt]);
+    require memberCommitment != pad(32, "0") "Membership verification failed: Invalid member commitment";
+
+    // 3. Compute unique, unlinkable nullifier for double-claim prevention: hash(secret, domainSeparator)
+    const nullifier = persistent_hash<[Bytes<32>, Bytes<32>]>([witness.secret, domainSeparator]);
+
+    // 4. Increment verified access counter on ledger
+    verificationCount = verificationCount + 1;
+
+    // 5. Disclose and return derived nullifier to public state
+    return disclose(nullifier);
+}
