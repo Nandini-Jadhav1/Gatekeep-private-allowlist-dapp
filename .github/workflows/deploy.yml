@@ -5,16 +5,23 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
   deploy:
-    name: Deploy to Production Environment
-    runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: https://gatekeep-midnight.vercel.app
-
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Node.js 22.x
@@ -23,17 +30,20 @@ jobs:
           node-version: 22.x
           cache: 'npm'
 
-      - name: Install Dependencies
+      - name: Install root dependencies
         run: npm ci
 
-      - name: Build GateKeep Contract & Frontend
+      - name: Build contract & frontend application
         run: npm run build
 
-      - name: Upload Build Output Artifact
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload build artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'frontend/dist'
+          path: './frontend/dist'
 
-      - name: Deploy to GitHub Pages & Production Status
+      - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
