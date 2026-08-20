@@ -5,17 +5,25 @@ import { PrivacyBadge } from './components/PrivacyBadge';
 import { OrganizerPanel } from './components/OrganizerPanel';
 import { MemberPanel } from './components/MemberPanel';
 import { PrivacyModelDocs } from './components/PrivacyModelDocs';
+import { WalletModal } from './components/WalletModal';
+import { ContractDetailsModal } from './components/ContractDetailsModal';
 import { GateKeepClient, GateKeepState } from '../../src/contract';
-import { ShieldCheck, Users, KeyRound, Lock, Info, Sparkles } from 'lucide-react';
+import { ShieldCheck, Users, KeyRound, Info, Sparkles, FileCode } from 'lucide-react';
 
 export default function App() {
   const [client] = useState(() => new GateKeepClient());
   const [isInitialized, setIsInitialized] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'organizer' | 'member' | 'privacy'>('overview');
   
+  // Wallet modal & connection state
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
+  const [contractModalOpen, setContractModalOpen] = useState(false);
+  
   const [walletConnected, setWalletConnected] = useState(true);
+  const [walletName, setWalletName] = useState('Lace Wallet');
   const [walletAddress, setWalletAddress] = useState('midnight1q9x2a4v8h9k0l3m5n7p2r4t6v8x0z2y4w6');
   const [networkName] = useState('Midnight Testnet (Preprod)');
+  const [contractAddress] = useState('0x4f8e3b29c17d92a10b4f62e8315a91d295034c71829e1a2f4c6b8d0e2a4b6c8');
 
   const [ledgerState, setLedgerState] = useState<GateKeepState>({
     organizerPublicKeyHex: '',
@@ -65,8 +73,14 @@ export default function App() {
     return result;
   };
 
-  const handleToggleWallet = () => {
-    setWalletConnected(!walletConnected);
+  const handleConnectWallet = (name: string, address: string) => {
+    setWalletName(name);
+    setWalletAddress(address);
+    setWalletConnected(true);
+  };
+
+  const handleDisconnectWallet = () => {
+    setWalletConnected(false);
   };
 
   return (
@@ -74,7 +88,9 @@ export default function App() {
       <Header
         walletConnected={walletConnected}
         walletAddress={walletAddress}
-        onToggleWallet={handleToggleWallet}
+        walletName={walletName}
+        onOpenWalletModal={() => setWalletModalOpen(true)}
+        onOpenContractModal={() => setContractModalOpen(true)}
         networkName={networkName}
       />
 
@@ -145,6 +161,14 @@ export default function App() {
                 <ShieldCheck className="w-4 h-4" />
                 <span>Privacy Model</span>
               </button>
+
+              <button
+                onClick={() => setContractModalOpen(true)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 bg-slate-900/80 hover:bg-slate-800 text-cyan-300 border border-cyan-700/50 transition"
+              >
+                <FileCode className="w-4 h-4" />
+                <span>Inspect Contract Details</span>
+              </button>
             </div>
           </div>
         </div>
@@ -193,10 +217,30 @@ export default function App() {
         {activeTab === 'privacy' && <PrivacyModelDocs />}
       </main>
 
+      {/* Interactive Wallet Connection Popup Modal */}
+      <WalletModal
+        isOpen={walletModalOpen}
+        onClose={() => setWalletModalOpen(false)}
+        walletConnected={walletConnected}
+        walletAddress={walletAddress}
+        onConnectWallet={handleConnectWallet}
+        onDisconnectWallet={handleDisconnectWallet}
+      />
+
+      {/* Interactive Contract Inspector Popup Modal */}
+      <ContractDetailsModal
+        isOpen={contractModalOpen}
+        onClose={() => setContractModalOpen(false)}
+        ledgerState={ledgerState}
+        contractAddress={contractAddress}
+      />
+
       <footer className="max-w-7xl mx-auto px-6 mt-16 pt-8 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-4">
         <p>© 2026 GateKeep — Built on Midnight Network with Compact ZK Smart Contracts</p>
         <div className="flex items-center gap-4 font-mono text-[11px]">
-          <span className="text-cyan-400">Deployed Contract: 0x4f8e...92a1</span>
+          <button onClick={() => setContractModalOpen(true)} className="text-cyan-400 hover:underline">
+            Deployed Contract: 0x4f8e...92a1
+          </button>
           <span className="text-slate-600">•</span>
           <span className="text-emerald-400">Status: Testnet Active</span>
         </div>
