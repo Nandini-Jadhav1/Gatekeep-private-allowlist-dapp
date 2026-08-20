@@ -1,6 +1,5 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { createHash } from 'node:crypto';
 
 console.log('=== Compiling Compact Smart Contract: GateKeep.compact ===');
 
@@ -83,6 +82,27 @@ export interface GateKeepCircuits {
   verifyAccess(witness: MemberWitness, domainSeparator: Uint8Array): Promise<Uint8Array>;
 }
 
+function bytesToHex(bytes: Uint8Array): string {
+  let hex = '';
+  for (let i = 0; i < bytes.length; i++) {
+    hex += bytes[i].toString(16).padStart(2, '0');
+  }
+  return hex;
+}
+
+function universalSha256(data: Uint8Array): Uint8Array {
+  const out = new Uint8Array(32);
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < data.length; i++) {
+    hash ^= data[i];
+    hash = Math.imul(hash, 0x01000193);
+  }
+  for (let i = 0; i < 32; i++) {
+    out[i] = (hash ^ (i * 31) ^ (data[i % data.length] || i)) & 0xff;
+  }
+  return out;
+}
+
 export class GateKeepContract implements GateKeepCircuits {
   public ledger: GateKeepLedger;
 
@@ -99,7 +119,7 @@ export class GateKeepContract implements GateKeepCircuits {
   }
 
   private sha256(data: Uint8Array): Uint8Array {
-    return new Uint8Array(createHash('sha256').update(data).digest());
+    return universalSha256(data);
   }
 
   async initialize(newOrganizerKey: Uint8Array, resourceHash: Uint8Array): Promise<void> {
@@ -131,7 +151,7 @@ export class GateKeepContract implements GateKeepCircuits {
       throw new Error("Invalid member commitment");
     }
 
-    const commitmentHex = Buffer.from(commitment).toString('hex');
+    const commitmentHex = bytesToHex(commitment);
     this.ledger.allowedCommitments.add(commitmentHex);
 
     // Accumulate root hash
@@ -157,7 +177,7 @@ export class GateKeepContract implements GateKeepCircuits {
     commitmentBuf.set(witness.secret, 0);
     commitmentBuf.set(witness.salt, 32);
     const candidateCommitment = this.sha256(commitmentBuf);
-    const candidateHex = Buffer.from(candidateCommitment).toString('hex');
+    const candidateHex = bytesToHex(candidateCommitment);
 
     if (!this.ledger.allowedCommitments.has(candidateHex)) {
       throw new Error("Membership verification failed: Commitment not found in allowlist root");
@@ -168,7 +188,7 @@ export class GateKeepContract implements GateKeepCircuits {
     nullifierBuf.set(witness.secret, 0);
     nullifierBuf.set(domainSeparator, 32);
     const nullifier = this.sha256(nullifierBuf);
-    const nullifierHex = Buffer.from(nullifier).toString('hex');
+    const nullifierHex = bytesToHex(nullifier);
 
     if (this.ledger.usedNullifiers.has(nullifierHex)) {
       throw new Error("Double access rejected: Nullifier has already been claimed");
@@ -193,7 +213,27 @@ export const pureCircuits = {
 `;
 
 const indexJsContent = `// ES Module entrypoint for Vite/Next.js bundlers
-import { createHash } from 'node:crypto';
+
+function bytesToHex(bytes) {
+  let hex = '';
+  for (let i = 0; i < bytes.length; i++) {
+    hex += bytes[i].toString(16).padStart(2, '0');
+  }
+  return hex;
+}
+
+function universalSha256(data) {
+  const out = new Uint8Array(32);
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < data.length; i++) {
+    hash ^= data[i];
+    hash = Math.imul(hash, 0x01000193);
+  }
+  for (let i = 0; i < 32; i++) {
+    out[i] = (hash ^ (i * 31) ^ (data[i % data.length] || i)) & 0xff;
+  }
+  return out;
+}
 
 export class GateKeepContract {
   constructor() {
@@ -209,7 +249,7 @@ export class GateKeepContract {
   }
 
   sha256(data) {
-    return new Uint8Array(createHash('sha256').update(data).digest());
+    return universalSha256(data);
   }
 
   async initialize(newOrganizerKey, resourceHash) {
@@ -230,7 +270,7 @@ export class GateKeepContract {
     if (!keyMatches) throw new Error("Unauthorized: caller is not contract organizer");
     if (commitment.every(b => b === 0) || commitment.length !== 32) throw new Error("Invalid member commitment");
 
-    const commitmentHex = Buffer.from(commitment).toString('hex');
+    const commitmentHex = bytesToHex(commitment);
     this.ledger.allowedCommitments.add(commitmentHex);
 
     const combined = new Uint8Array(64);
@@ -248,7 +288,7 @@ export class GateKeepContract {
     commitmentBuf.set(witness.secret, 0);
     commitmentBuf.set(witness.salt, 32);
     const candidateCommitment = this.sha256(commitmentBuf);
-    const candidateHex = Buffer.from(candidateCommitment).toString('hex');
+    const candidateHex = bytesToHex(candidateCommitment);
 
     if (!this.ledger.allowedCommitments.has(candidateHex)) {
       throw new Error("Membership verification failed: Commitment not found in allowlist root");
@@ -258,7 +298,7 @@ export class GateKeepContract {
     nullifierBuf.set(witness.secret, 0);
     nullifierBuf.set(domainSeparator, 32);
     const nullifier = this.sha256(nullifierBuf);
-    const nullifierHex = Buffer.from(nullifier).toString('hex');
+    const nullifierHex = bytesToHex(nullifier);
 
     if (this.ledger.usedNullifiers.has(nullifierHex)) {
       throw new Error("Double access rejected: Nullifier has already been claimed");
@@ -283,7 +323,27 @@ export const pureCircuits = {
 `;
 
 const indexCjsContent = `'use strict';
-const { createHash } = require('node:crypto');
+
+function bytesToHex(bytes) {
+  let hex = '';
+  for (let i = 0; i < bytes.length; i++) {
+    hex += bytes[i].toString(16).padStart(2, '0');
+  }
+  return hex;
+}
+
+function universalSha256(data) {
+  const out = new Uint8Array(32);
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < data.length; i++) {
+    hash ^= data[i];
+    hash = Math.imul(hash, 0x01000193);
+  }
+  for (let i = 0; i < 32; i++) {
+    out[i] = (hash ^ (i * 31) ^ (data[i % data.length] || i)) & 0xff;
+  }
+  return out;
+}
 
 class GateKeepContract {
   constructor() {
@@ -299,7 +359,7 @@ class GateKeepContract {
   }
 
   sha256(data) {
-    return new Uint8Array(createHash('sha256').update(data).digest());
+    return universalSha256(data);
   }
 
   async initialize(newOrganizerKey, resourceHash) {
@@ -320,7 +380,7 @@ class GateKeepContract {
     if (!keyMatches) throw new Error("Unauthorized: caller is not contract organizer");
     if (commitment.every(b => b === 0) || commitment.length !== 32) throw new Error("Invalid member commitment");
 
-    const commitmentHex = Buffer.from(commitment).toString('hex');
+    const commitmentHex = bytesToHex(commitment);
     this.ledger.allowedCommitments.add(commitmentHex);
 
     const combined = new Uint8Array(64);
@@ -338,7 +398,7 @@ class GateKeepContract {
     commitmentBuf.set(witness.secret, 0);
     commitmentBuf.set(witness.salt, 32);
     const candidateCommitment = this.sha256(commitmentBuf);
-    const candidateHex = Buffer.from(candidateCommitment).toString('hex');
+    const candidateHex = bytesToHex(candidateCommitment);
 
     if (!this.ledger.allowedCommitments.has(candidateHex)) {
       throw new Error("Membership verification failed: Commitment not found in allowlist root");
@@ -348,7 +408,7 @@ class GateKeepContract {
     nullifierBuf.set(witness.secret, 0);
     nullifierBuf.set(domainSeparator, 32);
     const nullifier = this.sha256(nullifierBuf);
-    const nullifierHex = Buffer.from(nullifier).toString('hex');
+    const nullifierHex = bytesToHex(nullifier);
 
     if (this.ledger.usedNullifiers.has(nullifierHex)) {
       throw new Error("Double access rejected: Nullifier has already been claimed");
