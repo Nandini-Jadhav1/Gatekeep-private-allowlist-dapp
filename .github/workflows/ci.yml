@@ -11,19 +11,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout Repository Code
         uses: actions/checkout@v4
 
-      - name: Setup Node v22
+      - name: Setup Node.js v22 Environment
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Install Dependencies
+      - name: Install Project Dependencies
         run: npm install
 
-      - name: Run Tests
-        run: npx vitest run --passWithNoTests
+      - name: Run Vitest Unit & Circuit Tests
+        run: npm test
 
-      - name: Build Project
+      - name: Compile Compact Contracts & Build Frontend
         run: npm run build
