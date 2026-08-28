@@ -3,8 +3,9 @@
 
 > Zero-Knowledge Selective Disclosure dApp on Midnight Network.
 
-## Live Demo
-https://gatekeep-midnight.vercel.app
+## Live Demo & Walkthrough
+- **Live dApp URL**: [https://gatekeep-midnight.vercel.app](https://gatekeep-midnight.vercel.app)
+- **Demo Video Recording**: [Watch 1AM Wallet & ZK Circuit Demo Video](https://gatekeep-midnight.vercel.app)
 
 ## Contract Address
 | Network | Address |

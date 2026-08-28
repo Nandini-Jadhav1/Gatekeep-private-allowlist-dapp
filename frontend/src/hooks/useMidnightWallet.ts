@@ -113,35 +113,51 @@ export function useMidnightWallet() {
 
     try {
       if (walletId === '1am') {
-        try {
-          const provider = (window as any)?.midnight?.['1am'] || (window as any)?.midnight?.oneAm || (window as any)?.['1am'];
-          if (!provider) throw new Error("1AM Wallet object not found in window.midnight['1am']");
+        const midnightObj = typeof window !== 'undefined' ? (window as any).midnight : null;
+        const provider =
+          midnightObj?.['1am'] ||
+          midnightObj?.oneAm ||
+          midnightObj?.['1amWallet'] ||
+          midnightObj?.['1AM'] ||
+          (window as any)?.cardano?.['1am'] ||
+          (window as any)?.['1am'];
 
-          const walletApi = await provider.enable();
-          console.log("1AM Connected successfully", walletApi);
+        if (provider && typeof provider.enable === 'function') {
+          console.log("Found 1AM provider. Invoking window.midnight['1am'].enable()...");
+          try {
+            const walletApi = await provider.enable();
+            console.log("1AM Wallet connected successfully:", walletApi);
+            const derivedAddress =
+              walletApi?.serviceUri ||
+              walletApi?.address ||
+              (Array.isArray(walletApi) && walletApi[0]) ||
+              walletApi?.accounts?.[0] ||
+              'midnight1q8y3b5w9j1k2m4n6p8r0t2v4x6z8y1w3';
 
-          const derivedAddress =
-            walletApi?.serviceUri ||
-            walletApi?.address ||
-            (Array.isArray(walletApi) && walletApi[0]) ||
-            walletApi?.accounts?.[0] ||
-            'midnight1q8y3b5w9j1k2m4n6p8r0t2v4x6z8y1w3';
-
-          setWalletName('1AM Wallet');
-          setActiveWalletId('1am');
-          setWalletAddress(derivedAddress);
-          setWalletConnected(true);
+            setWalletName('1AM Wallet');
+            setActiveWalletId('1am');
+            setWalletAddress(derivedAddress);
+            setWalletConnected(true);
+            setConnecting(false);
+            return true;
+          } catch (err: any) {
+            console.warn("1AM Wallet enable() popup dismissed or rejected:", err);
+            alert("1AM Wallet connection request rejected or popup closed. Please unlock 1AM in your browser toolbar and try again.");
+            setConnecting(false);
+            return false;
+          }
+        } else {
+          console.warn("1AM Wallet object not detected in window.midnight['1am']");
+          // Alert user that extension is not installed/unlocked in window.midnight
+          alert("1AM Wallet extension not detected in window.midnight['1am']. Please ensure the 1AM Chrome Extension is installed and unlocked, then refresh the page.");
+          setAlertError({
+            walletId: '1am',
+            title: '1AM Wallet Extension Missing',
+            message: "1AM Wallet extension object (window.midnight['1am']) was not found on your browser window.",
+            actionHint: 'Please install and unlock the 1AM Chrome extension, then click "Refresh Detection".',
+          });
           setConnecting(false);
-          return true;
-        } catch (err) {
-          console.warn("1AM native enable() call unfulfilled, activating connected session state:", err);
-          // Fallback directly to setting connected state so the UI transitions to connected mode seamlessly
-          setWalletName('1AM Wallet');
-          setActiveWalletId('1am');
-          setWalletAddress('midnight1q8y3b5w9j1k2m4n6p8r0t2v4x6z8y1w3');
-          setWalletConnected(true);
-          setConnecting(false);
-          return true;
+          return false;
         }
       }
 
