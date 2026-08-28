@@ -162,36 +162,49 @@ export function useMidnightWallet() {
       }
 
       if (walletId === 'lace') {
-        try {
-          const provider = getLaceProvider();
-          if (!provider) throw new Error("Lace Wallet object not found");
+        const midnightObj = typeof window !== 'undefined' ? (window as any).midnight : null;
+        const cardanoObj = typeof window !== 'undefined' ? (window as any).cardano : null;
+        const provider =
+          midnightObj?.lace ||
+          midnightObj?.['lace'] ||
+          cardanoObj?.lace ||
+          cardanoObj?.['lace'];
 
-          let connResult: any = null;
-          if (typeof provider.enable === 'function') {
-            connResult = await provider.enable();
-          } else if (typeof provider.connect === 'function') {
-            connResult = await provider.connect();
+        if (provider && typeof provider.enable === 'function') {
+          console.log("Found Lace provider. Invoking provider.enable()...");
+          try {
+            const walletApi = await provider.enable();
+            console.log("Lace Wallet connected successfully:", walletApi);
+            const derivedAddress =
+              walletApi?.address ||
+              walletApi?.serviceUri ||
+              (Array.isArray(walletApi) && walletApi[0]) ||
+              walletApi?.accounts?.[0] ||
+              'midnight1q9x2a4v8h9k0l3m5n7p2r4t6v8x0z2y4w6';
+
+            setWalletName('Lace Wallet');
+            setActiveWalletId('lace');
+            setWalletAddress(derivedAddress);
+            setWalletConnected(true);
+            setConnecting(false);
+            return true;
+          } catch (err: any) {
+            console.warn("Lace Wallet enable() popup dismissed or rejected:", err);
+            alert("Lace Wallet connection request rejected or popup closed. Please unlock Lace in your browser toolbar and try again.");
+            setConnecting(false);
+            return false;
           }
-
-          const derivedAddress =
-            connResult?.address ||
-            (Array.isArray(connResult) && connResult[0]) ||
-            'midnight1q9x2a4v8h9k0l3m5n7p2r4t6v8x0z2y4w6';
-
-          setWalletName('Lace Wallet');
-          setActiveWalletId('lace');
-          setWalletAddress(derivedAddress);
-          setWalletConnected(true);
+        } else {
+          console.warn("Lace Wallet object not detected in window.midnight or window.cardano");
+          alert("Lace Wallet extension not detected at window.midnight.lace or window.cardano.lace. Please ensure Lace extension is installed and unlocked in your browser, then refresh the page.");
+          setAlertError({
+            walletId: 'lace',
+            title: 'Lace Wallet Extension Missing',
+            message: "Lace Wallet extension object (window.midnight.lace / window.cardano.lace) was not found on your browser window.",
+            actionHint: 'Please install and unlock the Lace Wallet browser extension, then click "Refresh Detection".',
+          });
           setConnecting(false);
-          return true;
-        } catch (err) {
-          console.warn("Lace enable() unfulfilled, activating connected session state:", err);
-          setWalletName('Lace Wallet');
-          setActiveWalletId('lace');
-          setWalletAddress('midnight1q9x2a4v8h9k0l3m5n7p2r4t6v8x0z2y4w6');
-          setWalletConnected(true);
-          setConnecting(false);
-          return true;
+          return false;
         }
       }
 
