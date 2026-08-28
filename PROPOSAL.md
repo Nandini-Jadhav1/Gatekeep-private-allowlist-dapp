@@ -1,25 +1,40 @@
-# Product Proposal: GateKeep — Private Allowlist Access dApp on Midnight
+# Product Proposal
 
-## 1. Problem Statement
-Token-gated drops, exclusive community invites, and private events currently rely on public allowlists or web2 authentication servers. 
-- **Public Allowlists On-Chain**: Publishing Ethereum/Solana wallet addresses on-chain permanently ties user identities, wallet balances, and transaction histories to gated communities. Anyone observing the blockchain can profile users or front-run activity.
-- **Web2 Authorization Centralization**: Off-chain OAuth / Discord bots require trusting a central server to store member registries, creating single points of failure and data leak risks.
+## What is the product, and who uses it?
+**GateKeep** is a privacy-first zero-knowledge selective disclosure allowlist access protocol built on the Midnight Network. 
 
-## 2. Chosen Idea & Category
-- **Project Name**: GateKeep
-- **Idea Category**: Private Allowlist Access — Prove membership without revealing identity.
-- **Target Network**: Midnight Network (Zero-Knowledge Smart Contracts).
+It targets two key user segments:
+1. **Event Organizers & dApp Founders**: Who require verifiable allowlists for gated resources (e.g. VIP Discord access, token presale allowlists, private alpha product drops, exclusive governance portals) without having to store or manage sensitive personal user identifiers or public wallet addresses.
+2. **Privacy-Conscious Web3 Users**: Who want to prove their right to access exclusive perks or gated resources without linking their on-chain wallet history, real-world identity, or email to their allowlist activity.
 
-## 3. Why Midnight & Selective Disclosure are the Right Fit
-Midnight's Compact programming language enables zero-knowledge selective disclosure, providing the ideal architecture for private allowlist access:
-- **Private Witness**: The member's raw secret key and specific allowlist commitment location remain strictly off-chain in private state.
-- **Public Ledger Verification**: The Midnight contract verifies a zero-knowledge proof against the on-chain commitment root and records an unlinkable nullifier.
-- **Zero-Knowledge Proofs**: Observers verify that *a valid member* accessed the gated resource without discovering *who* accessed it or which address submitted the proof.
-- **Cryptographic Nullifiers**: Prevents double-claiming access while ensuring nullifiers cannot be linked back to the member's wallet or secret.
+GateKeep leverages Midnight's Compact smart contract language to verify off-chain Merkle membership proofs and issue unlinkable nullifiers on-chain.
 
-## 4. Scope for Current Cycle
-- **Compact Smart Contract (`GateKeep.compact`)**: Ledger state holding commitment roots, verification counter, gated resource hash, and organizer access controls.
-- **Cryptographic Nullifier Circuit**: Derives nullifiers via `persistent_hash(secret, domainSeparator)` for double-access prevention.
-- **Vitest Unit Test Suite**: Thorough test suite verifying valid proofs, non-member rejections, double-access prevention, organizer authorization, and counter state updates.
-- **Frontend Web Application**: Next.js & TypeScript UI with organizer management panel, member ZK proof submission, live state counters, and dark-themed UI.
-- **CI/CD Pipeline**: GitHub Actions workflow compiling Compact contracts and running test suites automatically.
+## Why Midnight specifically?
+Transparent blockchains like Ethereum or Cardano mainnet reveal every transaction sender, account balance, and state mutation to the public. If an allowlist dApp is deployed on a transparent ledger:
+- Every member's public key or address is visible in the contract state.
+- Claiming access directly links the user's public identity to the gated resource.
+- Sybil attacks or double-claiming can only be prevented by tracking public addresses, completely breaking user anonymity.
+
+Midnight solves this fundamentally through **Compact ZK smart contracts**:
+- **Private Witness Computations**: A user's invite token secret key and Merkle path remain strictly local on their device as private witnesses.
+- **Selective Disclosure**: Midnight's ZK circuits verify that the user knows a valid secret corresponding to a member commitment in the contract's Merkle root *without* exposing the secret itself or the user's wallet address.
+- **Unlinkable Nullifiers**: Midnight ledger records an encrypted/hashed nullifier upon verification, ensuring a single member cannot claim access twice while preventing any observer from linking the nullifier back to the original member identity or wallet.
+
+## Data Model
+| Data Point | Type | Disclosed To |
+|---|---|---|
+| Commitment Merkle Root | Public Ledger State | Everyone (On-chain) |
+| On-Chain Nullifier Set | Public Ledger State | Everyone (On-chain) |
+| Total Member & Verification Counters | Public Ledger State | Everyone (On-chain) |
+| Gated Resource Hash | Public Ledger State | Everyone (On-chain) |
+| Organizer Secret & Master Key | Private Organizer Witness | Event Organizer Only (Local) |
+| Member Invite Secret & Salt | Private Member Witness | Member Only (Local Device) |
+| Member Merkle Proof & Witness Path | Private Circuit Witness | Midnight ZK Prover Only (Local) |
+| User Wallet Address & Transaction Sender | Private Network Context | Unlinked from ZK Nullifier |
+
+## Mainnet Feasibility
+GateKeep is designed from the ground up for full production feasibility on Midnight Mainnet:
+- **Lightweight On-Chain Footprint**: Storage is limited to a 32-byte Merkle root and 32-byte nullifiers, keeping on-chain state minimal and gas costs extremely low.
+- **Client-Side ZK Proving**: Proof generation is executed inside the user's browser via WASM and the 1AM / Lace Wallet extensions, offloading compute from validators.
+- **Modular Integration**: GateKeep can act as a reusable privacy primitive middleware for any Web3 community or dApp infrastructure on Midnight.
+- **Level 6 Roadmap**: Migration to Mainnet involves deploying finalized Compact circuits to Midnight Mainnet, conducting formal circuit audits, and integrating 1AM Wallet Mainnet RPC connectors.

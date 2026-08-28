@@ -7,7 +7,8 @@ import { MemberPanel } from './components/MemberPanel';
 import { PrivacyModelDocs } from './components/PrivacyModelDocs';
 import { WalletModal } from './components/WalletModal';
 import { ContractDetailsModal } from './components/ContractDetailsModal';
-import { GateKeepClient, GateKeepState } from '../../src/contract';
+import { GateKeepClient, GateKeepState } from './contract';
+import { useMidnightWallet } from './hooks/useMidnightWallet';
 import { ShieldCheck, Users, KeyRound, Info, Sparkles, FileCode } from 'lucide-react';
 
 export default function App() {
@@ -15,13 +16,26 @@ export default function App() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'organizer' | 'member' | 'privacy'>('overview');
   
-  // Wallet modal & connection state
+  // Modals state
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [contractModalOpen, setContractModalOpen] = useState(false);
   
-  const [walletConnected, setWalletConnected] = useState(true);
-  const [walletName, setWalletName] = useState('Lace Wallet');
-  const [walletAddress, setWalletAddress] = useState('midnight1q9x2a4v8h9k0l3m5n7p2r4t6v8x0z2y4w6');
+  // Custom Midnight dual-wallet connection hook (supports Lace & 1AM Wallet extensions)
+  const {
+    walletConnected,
+    walletName,
+    walletAddress,
+    connecting,
+    alertError,
+    detectionState,
+    scanProviders,
+    connectWallet,
+    disconnectWallet,
+    clearAlert,
+    setWalletAddress,
+    setWalletConnected,
+  } = useMidnightWallet();
+
   const [networkName] = useState('Midnight Testnet (Preprod)');
   const [contractAddress] = useState('0x4f8e3b29c17d92a10b4f62e8315a91d295034c71829e1a2f4c6b8d0e2a4b6c8');
 
@@ -30,6 +44,7 @@ export default function App() {
     commitmentRootHex: '',
     memberCount: 0,
     verificationCount: 0,
+    allowedCommitmentsCount: 0,
     gatedResourceHashHex: '',
     usedNullifiersCount: 0,
   });
@@ -71,16 +86,6 @@ export default function App() {
     const result = await client.verifyAccess(memberSecret, memberSalt);
     refreshState();
     return result;
-  };
-
-  const handleConnectWallet = (name: string, address: string) => {
-    setWalletName(name);
-    setWalletAddress(address);
-    setWalletConnected(true);
-  };
-
-  const handleDisconnectWallet = () => {
-    setWalletConnected(false);
   };
 
   return (
@@ -217,14 +222,24 @@ export default function App() {
         {activeTab === 'privacy' && <PrivacyModelDocs />}
       </main>
 
-      {/* Interactive Wallet Connection Popup Modal */}
+      {/* Dynamic Dual-Wallet Connection Popup Modal */}
       <WalletModal
         isOpen={walletModalOpen}
         onClose={() => setWalletModalOpen(false)}
         walletConnected={walletConnected}
+        walletName={walletName}
         walletAddress={walletAddress}
-        onConnectWallet={handleConnectWallet}
-        onDisconnectWallet={handleDisconnectWallet}
+        connecting={connecting}
+        alertError={alertError}
+        detectionState={detectionState}
+        onConnectWallet={connectWallet}
+        onDisconnectWallet={disconnectWallet}
+        onRefreshDetection={scanProviders}
+        onClearAlert={clearAlert}
+        onSimulateConnect={(name, addr) => {
+          setWalletAddress(addr);
+          setWalletConnected(true);
+        }}
       />
 
       {/* Interactive Contract Inspector Popup Modal */}
