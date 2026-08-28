@@ -113,44 +113,42 @@ export function useMidnightWallet() {
 
     try {
       if (walletId === '1am') {
-        const provider = get1amProvider();
+        const midnightObj = typeof window !== 'undefined' ? (window as any).midnight : null;
+        const oneAmProvider = midnightObj ? midnightObj['1am'] || midnightObj.oneAm || (window as any)['1am'] : null;
 
-        if (!provider && !oneAmDetected) {
+        if (midnightObj && oneAmProvider) {
+          try {
+            const api = await oneAmProvider.enable();
+            console.log("1AM Connected successfully", api);
+            const derivedAddress =
+              api?.address ||
+              (Array.isArray(api) && api[0]) ||
+              api?.accounts?.[0] ||
+              'midnight1q8y3b5w9j1k2m4n6p8r0t2v4x6z8y1w3';
+
+            setWalletName('1AM Wallet');
+            setActiveWalletId('1am');
+            setWalletAddress(derivedAddress);
+            setWalletConnected(true);
+            setConnecting(false);
+            return true;
+          } catch (err) {
+            console.error("1AM connection error:", err);
+            alert("Please unlock your 1AM Wallet extension from the browser toolbar first!");
+            setConnecting(false);
+            return false;
+          }
+        } else {
+          alert("1AM Wallet extension not detected in window.midnight['1am']");
           setAlertError({
             walletId: '1am',
             title: '1AM Wallet Not Detected',
-            message: "The 1AM Wallet extension provider object (window.midnight['1am']) was not found on your browser window.",
+            message: "1AM Wallet extension not detected in window.midnight['1am']",
             actionHint: 'Please make sure the 1AM Chrome extension is installed, enabled, and unlocked in your browser extension menu, then click "Refresh Detection".',
           });
           setConnecting(false);
           return false;
         }
-
-        // Explicitly invoke 1AM Wallet provider method
-        let connResult: any = null;
-        if (provider) {
-          if (typeof provider.enable === 'function') {
-            connResult = await provider.enable();
-          } else if (typeof provider.connect === 'function') {
-            connResult = await provider.connect();
-          } else if (typeof provider.requestAccounts === 'function') {
-            connResult = await provider.requestAccounts();
-          }
-        }
-
-        // Determine address from provider response or fallback address for 1AM
-        const derivedAddress =
-          connResult?.address ||
-          (Array.isArray(connResult) && connResult[0]) ||
-          connResult?.accounts?.[0] ||
-          'midnight1q8y3b5w9j1k2m4n6p8r0t2v4x6z8y1w3';
-
-        setWalletName('1AM Wallet');
-        setActiveWalletId('1am');
-        setWalletAddress(derivedAddress);
-        setWalletConnected(true);
-        setConnecting(false);
-        return true;
       }
 
       if (walletId === 'lace') {
