@@ -6,7 +6,7 @@
 ## Live Demo & Walkthrough
 - **Live dApp URL**: [https://gatekeep-midnight.vercel.app](https://gatekeep-midnight.vercel.app)
 - **Demo Video Recording**: [Watch 1AM Wallet & ZK Circuit Demo Video](https://gatekeep-midnight.vercel.app)
-<video controls src="20260829-0947-52.4658992-1.mp4" title="Title"></video>
+- **Demo Video Recording:** [Watch 1AM Wallet & ZK Circuit Demo Video](https://github.com/Nandini-Jadhav1/Gatekeep-private-allowlist-dapp/issues/1)
 
 ## Contract Address
 | Network | Address |
