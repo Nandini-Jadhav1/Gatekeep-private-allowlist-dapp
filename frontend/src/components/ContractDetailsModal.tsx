@@ -52,7 +52,7 @@ export const ContractDetailsModal: React.FC<ContractDetailsModalProps> = ({
 
         {/* Deployed Contract Address Banner */}
         <div className="bg-slate-900/90 p-4 rounded-2xl border border-slate-800 mb-6">
-          <span className="text-[10px] text-slate-500 uppercase font-mono block">Deployed Contract Address (Testnet Preprod):</span>
+          <span className="text-[10px] text-slate-500 uppercase font-mono block">Deployed Contract Address (Testnet Preview):</span>
           <div className="flex items-center justify-between mt-1 gap-3">
             <code className="text-xs font-mono text-cyan-300 break-all bg-slate-950 p-2 rounded-xl border border-slate-800 flex-1">
               {contractAddress}

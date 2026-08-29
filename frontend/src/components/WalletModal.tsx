@@ -155,7 +155,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                   <CheckCircle2 className="w-4 h-4" /> Active Connection: {walletName}
                 </span>
                 <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-700/50">
-                  Preprod Testnet
+                  Preview Testnet
                 </span>
               </div>
 

@@ -36,7 +36,7 @@ export default function App() {
     setWalletConnected,
   } = useMidnightWallet();
 
-  const [networkName] = useState('Midnight Testnet (Preprod)');
+  const [networkName] = useState('Midnight Testnet (Preview)');
   const [contractAddress] = useState('0x4f8e3b29c17d92a10b4f62e8315a91d295034c71829e1a2f4c6b8d0e2a4b6c8');
 
   const [ledgerState, setLedgerState] = useState<GateKeepState>({

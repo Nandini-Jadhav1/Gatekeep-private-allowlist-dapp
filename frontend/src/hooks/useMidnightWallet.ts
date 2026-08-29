@@ -5,12 +5,27 @@ export interface MidnightWalletProvider {
   icon?: string;
   apiVersion?: string;
   enable?: () => Promise<any>;
-  connect?: () => Promise<any>;
+  // Per 1AM's official DApp Connector docs, connect() takes a network id, e.g. connect('preview').
+  // This app specifically targets Preprod (see App.tsx networkName) — use that, not 'preview'.
+  connect?: (networkId?: string) => Promise<any>;
   isEnabled?: () => Promise<boolean>;
   requestAccounts?: () => Promise<string[]>;
   getAccount?: () => Promise<{ address: string }>;
   state?: () => Promise<any>;
+  request?: (args: { method: string; params?: any }) => Promise<any>;
 }
+
+// How long we're willing to poll for the extension to inject itself before
+// telling the user it's genuinely not installed. Extensions inject
+// asynchronously, so checking once on mount is not enough.
+const DETECTION_TIMEOUT_MS = 6000;
+const DETECTION_POLL_INTERVAL_MS = 300;
+
+// Must match the network this dApp is actually deployed against (see
+// App.tsx's networkName = 'Midnight Testnet (Preprod)'). If you ever move
+// this app to preview/testnet, update this constant — a mismatch here is
+// exactly what produces "Network mismatch" errors from the wallet.
+const NETWORK_ID = 'preprod';
 
 declare global {
   interface Window {
@@ -48,40 +63,87 @@ export interface WalletAlertError {
 
 export function getLaceProvider(): MidnightWalletProvider | null {
   if (typeof window === 'undefined') return null;
-  return (
-    window.midnight?.lace ||
-    window.midnight?.['lace'] ||
-    window.cardano?.lace ||
-    null
-  );
+  const w = window as any;
+  if (w.midnight?.lace || w.midnight?.['lace']) return w.midnight?.lace || w.midnight?.['lace'];
+  if (w.cardano?.lace || w.cardano?.['lace']) return w.cardano?.lace || w.cardano?.['lace'];
+
+  if (w.midnight) {
+    for (const key of Object.keys(w.midnight)) {
+      if (key.toLowerCase().includes('lace')) return w.midnight[key];
+    }
+  }
+  if (w.cardano) {
+    for (const key of Object.keys(w.cardano)) {
+      if (key.toLowerCase().includes('lace')) return w.cardano[key];
+    }
+  }
+  return null;
 }
 
 export function get1amProvider(): MidnightWalletProvider | null {
   if (typeof window === 'undefined') return null;
-  return (
-    window.midnight?.['1am'] ||
-    window.midnight?.oneAm ||
-    window.midnight?.['1amWallet'] ||
-    window.midnight?.['1AM'] ||
-    window.cardano?.['1am'] ||
-    window['1am'] ||
-    null
-  );
+  const w = window as any;
+
+  // Direct property lookups on window.midnight
+  if (w.midnight) {
+    if (w.midnight['1am']) return w.midnight['1am'];
+    if (w.midnight.oneAm) return w.midnight.oneAm;
+    if (w.midnight['1amWallet']) return w.midnight['1amWallet'];
+    if (w.midnight['1AM']) return w.midnight['1AM'];
+    if (w.midnight.one_am) return w.midnight.one_am;
+    if (w.midnight.oneam) return w.midnight.oneam;
+    if (w.midnight.wallet) return w.midnight.wallet;
+    if (w.midnight.mn_wallet) return w.midnight.mn_wallet;
+
+    if (typeof w.midnight.enable === 'function' || typeof w.midnight.connect === 'function') {
+      return w.midnight;
+    }
+
+    for (const key of Object.keys(w.midnight)) {
+      const lowerKey = key.toLowerCase();
+      if (lowerKey.includes('1am') || lowerKey.includes('oneam') || lowerKey.includes('midnight')) {
+        return w.midnight[key];
+      }
+    }
+  }
+
+  // Lookups on window.cardano
+  if (w.cardano) {
+    if (w.cardano['1am']) return w.cardano['1am'];
+    if (w.cardano.oneAm) return w.cardano.oneAm;
+    if (w.cardano['1AM']) return w.cardano['1AM'];
+    for (const key of Object.keys(w.cardano)) {
+      const lowerKey = key.toLowerCase();
+      if (lowerKey.includes('1am') || lowerKey.includes('oneam')) {
+        return w.cardano[key];
+      }
+    }
+  }
+
+  // Direct window global properties
+  if (w['1am']) return w['1am'];
+  if (w.oneAm) return w.oneAm;
+  if (w['1AM']) return w['1AM'];
+
+  return null;
 }
 
 export function useMidnightWallet() {
   const [walletConnected, setWalletConnected] = useState(false);
-  const [walletName, setWalletName] = useState<string>('Lace Wallet');
-  const [activeWalletId, setActiveWalletId] = useState<WalletType | null>('lace');
-  const [walletAddress, setWalletAddress] = useState<string>('midnight1q9x2a4v8h9k0l3m5n7p2r4t6v8x0z2y4w6');
-  
+  const [walletName, setWalletName] = useState<string>('1AM Wallet');
+  const [activeWalletId, setActiveWalletId] = useState<WalletType | null>('1am');
+  const [walletAddress, setWalletAddress] = useState<string>('midnight1q8y3b5w9j1k2m4n6p8r0t2v4x6z8y1w3');
+
   const [connecting, setConnecting] = useState(false);
   const [alertError, setAlertError] = useState<WalletAlertError | null>(null);
 
+  // NOTE: detection now reflects reality. Do NOT force '1am' or 'lace' to
+  // true here — a badge that says "Detected" when nothing is actually
+  // injected is what caused the silent failure at connect-time before.
   const [detectionState, setDetectionState] = useState<WalletDetectionState>({
     lace: false,
     '1am': false,
-    cli: true, // CLI prover simulation available locally
+    cli: true, // the local CLI prover is a localhost service, not a browser injection
   });
 
   const scanProviders = useCallback(() => {
@@ -98,41 +160,73 @@ export function useMidnightWallet() {
   }, []);
 
   useEffect(() => {
+    // Poll frequently for the first few seconds (extensions inject
+    // asynchronously after page load), then settle into a slow background
+    // poll so the badge stays accurate if the user unlocks/installs the
+    // extension mid-session without reloading.
     scanProviders();
-    // Periodically re-check in case extensions load asynchronously after document mount
-    const interval = setInterval(scanProviders, 1500);
-    return () => clearInterval(interval);
+    const startedAt = Date.now();
+    const fastInterval = setInterval(() => {
+      scanProviders();
+      if (Date.now() - startedAt >= DETECTION_TIMEOUT_MS) {
+        clearInterval(fastInterval);
+      }
+    }, DETECTION_POLL_INTERVAL_MS);
+
+    const slowInterval = setInterval(scanProviders, 3000);
+
+    return () => {
+      clearInterval(fastInterval);
+      clearInterval(slowInterval);
+    };
   }, [scanProviders]);
 
   const connectWallet = async (walletId: WalletType): Promise<boolean> => {
     setConnecting(true);
     setAlertError(null);
 
-    // Refresh dynamic window provider detection
-    const { laceDetected, oneAmDetected } = scanProviders();
+    scanProviders();
 
     try {
       if (walletId === '1am') {
-        const midnightObj = typeof window !== 'undefined' ? (window as any).midnight : null;
-        const provider =
-          midnightObj?.['1am'] ||
-          midnightObj?.oneAm ||
-          midnightObj?.['1amWallet'] ||
-          midnightObj?.['1AM'] ||
-          (window as any)?.cardano?.['1am'] ||
-          (window as any)?.['1am'];
+        const provider = get1amProvider();
 
-        if (provider && typeof provider.enable === 'function') {
-          console.log("Found 1AM provider. Invoking window.midnight['1am'].enable()...");
+        console.log('=== 1AM WALLET CONNECTION ATTEMPT ===');
+        console.log('window.midnight:', (window as any).midnight);
+        console.log('window.cardano:', (window as any).cardano);
+        console.log('Resolved 1AM Provider:', provider);
+
+        if (provider) {
           try {
-            const walletApi = await provider.enable();
-            console.log("1AM Wallet connected successfully:", walletApi);
+            let walletApi: any = null;
+            // 1AM's own docs specify connect(networkId) as the primary
+            // handshake. Try that first, then fall back to the more
+            // generic enable()/requestAccounts() patterns other wallets
+            // use. NETWORK_ID must match what this dApp is deployed
+            // against (Preprod) and what the user's wallet is switched to.
+            if (typeof provider.connect === 'function') {
+              walletApi = await provider.connect(NETWORK_ID);
+            } else if (typeof provider.enable === 'function') {
+              walletApi = await provider.enable();
+            } else if (typeof provider.requestAccounts === 'function') {
+              walletApi = await provider.requestAccounts();
+            } else if (typeof provider.request === 'function') {
+              walletApi = await provider.request({ method: 'enable' });
+            } else {
+              throw new Error('Provider was found but exposes no known connect/enable method.');
+            }
+
+            console.log('1AM Wallet connect() returned:', walletApi);
             const derivedAddress =
-              walletApi?.serviceUri ||
               walletApi?.address ||
+              walletApi?.state?.address ||
               (Array.isArray(walletApi) && walletApi[0]) ||
               walletApi?.accounts?.[0] ||
-              'midnight1q8y3b5w9j1k2m4n6p8r0t2v4x6z8y1w3';
+              null;
+
+            if (!derivedAddress) {
+              throw new Error('Wallet approved the connection but returned no address.');
+            }
 
             setWalletName('1AM Wallet');
             setActiveWalletId('1am');
@@ -141,20 +235,30 @@ export function useMidnightWallet() {
             setConnecting(false);
             return true;
           } catch (err: any) {
-            console.warn("1AM Wallet enable() popup dismissed or rejected:", err);
-            alert("1AM Wallet connection request rejected or popup closed. Please unlock 1AM in your browser toolbar and try again.");
+            console.warn('1AM connect() popup rejected, closed, or failed:', err);
+            // Surface the REAL error instead of silently faking a connected
+            // session — that's what was hiding this bug in the first place.
+            setAlertError({
+              title: 'Could not connect to 1AM Wallet',
+              message:
+                err?.message ||
+                'The 1AM extension was detected but did not complete the connection. It may be locked, or you may have closed/rejected its approval popup.',
+              walletId: '1am',
+              actionHint:
+                'Open the 1AM extension icon in your toolbar, unlock it if prompted, then click "Refresh Extension Detection" and try again.',
+            });
             setConnecting(false);
             return false;
           }
         } else {
-          console.warn("1AM Wallet object not detected in window.midnight['1am']");
-          // Alert user that extension is not installed/unlocked in window.midnight
-          alert("1AM Wallet extension not detected in window.midnight['1am']. Please ensure the 1AM Chrome Extension is installed and unlocked, then refresh the page.");
+          console.warn('No 1AM provider object on window.midnight[\'1am\'].');
           setAlertError({
+            title: '1AM Wallet not found',
+            message:
+              "window.midnight['1am'] is not present on this page. Either the extension isn't installed/enabled, or another wallet extension overwrote window.midnight before 1AM could inject itself.",
             walletId: '1am',
-            title: '1AM Wallet Extension Missing',
-            message: "1AM Wallet extension object (window.midnight['1am']) was not found on your browser window.",
-            actionHint: 'Please install and unlock the 1AM Chrome extension, then click "Refresh Detection".',
+            actionHint:
+              'Confirm 1AM is installed and enabled in chrome://extensions, then click "Rescan Window". If you also have Lace installed, try disabling it temporarily to rule out a conflict.',
           });
           setConnecting(false);
           return false;
@@ -162,25 +266,27 @@ export function useMidnightWallet() {
       }
 
       if (walletId === 'lace') {
-        const midnightObj = typeof window !== 'undefined' ? (window as any).midnight : null;
-        const cardanoObj = typeof window !== 'undefined' ? (window as any).cardano : null;
-        const provider =
-          midnightObj?.lace ||
-          midnightObj?.['lace'] ||
-          cardanoObj?.lace ||
-          cardanoObj?.['lace'];
+        const provider = getLaceProvider();
 
-        if (provider && typeof provider.enable === 'function') {
-          console.log("Found Lace provider. Invoking provider.enable()...");
+        if (provider) {
           try {
-            const walletApi = await provider.enable();
-            console.log("Lace Wallet connected successfully:", walletApi);
+            let connResult: any = null;
+            if (typeof provider.enable === 'function') {
+              connResult = await provider.enable();
+            } else if (typeof provider.connect === 'function') {
+              connResult = await provider.connect();
+            } else {
+              throw new Error('Provider was found but exposes no known connect/enable method.');
+            }
+
             const derivedAddress =
-              walletApi?.address ||
-              walletApi?.serviceUri ||
-              (Array.isArray(walletApi) && walletApi[0]) ||
-              walletApi?.accounts?.[0] ||
-              'midnight1q9x2a4v8h9k0l3m5n7p2r4t6v8x0z2y4w6';
+              connResult?.address ||
+              (Array.isArray(connResult) && connResult[0]) ||
+              null;
+
+            if (!derivedAddress) {
+              throw new Error('Wallet approved the connection but returned no address.');
+            }
 
             setWalletName('Lace Wallet');
             setActiveWalletId('lace');
@@ -189,19 +295,24 @@ export function useMidnightWallet() {
             setConnecting(false);
             return true;
           } catch (err: any) {
-            console.warn("Lace Wallet enable() popup dismissed or rejected:", err);
-            alert("Lace Wallet connection request rejected or popup closed. Please unlock Lace in your browser toolbar and try again.");
+            console.warn('Lace enable() popup rejected, closed, or failed:', err);
+            setAlertError({
+              title: 'Could not connect to Lace Wallet',
+              message:
+                err?.message ||
+                'The Lace extension was detected but did not complete the connection.',
+              walletId: 'lace',
+              actionHint: 'Unlock Lace, switch it to the Midnight network tab, then try again.',
+            });
             setConnecting(false);
             return false;
           }
         } else {
-          console.warn("Lace Wallet object not detected in window.midnight or window.cardano");
-          alert("Lace Wallet extension not detected at window.midnight.lace or window.cardano.lace. Please ensure Lace extension is installed and unlocked in your browser, then refresh the page.");
           setAlertError({
+            title: 'Lace Wallet not found',
+            message: "No Lace/Midnight provider was found on window.midnight or window.cardano.",
             walletId: 'lace',
-            title: 'Lace Wallet Extension Missing',
-            message: "Lace Wallet extension object (window.midnight.lace / window.cardano.lace) was not found on your browser window.",
-            actionHint: 'Please install and unlock the Lace Wallet browser extension, then click "Refresh Detection".',
+            actionHint: 'Confirm Lace is installed and enabled, then click "Rescan Window".',
           });
           setConnecting(false);
           return false;
@@ -209,7 +320,6 @@ export function useMidnightWallet() {
       }
 
       if (walletId === 'cli') {
-        // Midnight CLI Prover connection
         await new Promise((res) => setTimeout(res, 500));
         setWalletName('Midnight CLI Prover');
         setActiveWalletId('cli');
@@ -223,10 +333,9 @@ export function useMidnightWallet() {
     } catch (err: any) {
       console.error(`Failed connecting to ${walletId}:`, err);
       setAlertError({
+        title: 'Wallet connection failed',
+        message: err?.message || 'An unexpected error occurred while connecting.',
         walletId,
-        title: `${walletId === '1am' ? '1AM Wallet' : walletId === 'lace' ? 'Lace Wallet' : 'Midnight CLI'} Connection Error`,
-        message: err?.message || 'Connection popup was closed or authorization was rejected by the wallet extension.',
-        actionHint: 'Please open your extension popup, unlock your wallet account, and retry.',
       });
       setConnecting(false);
       return false;
