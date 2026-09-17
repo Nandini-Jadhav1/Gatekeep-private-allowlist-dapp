@@ -1,5 +1,5 @@
 import { GateKeepContract, GateKeepLedger, MemberWitness } from '../contracts/managed/GateKeep/index.js';
-import { deriveCommitment, sha256, toHex } from './merkle.js';
+import { deriveCommitment, simulatorHash, toHex } from './merkle.js';
 
 export interface GateKeepState {
   organizerPublicKeyHex: string;
@@ -20,24 +20,24 @@ export class GateKeepClient {
   }
 
   async initialize(organizerSecret: string, gatedResourcePayload: string): Promise<void> {
-    const secretBytes = sha256(organizerSecret);
-    const publicKeyBytes = sha256(secretBytes);
-    const resourceHash = sha256(gatedResourcePayload);
+    const secretBytes = simulatorHash(organizerSecret);
+    const publicKeyBytes = simulatorHash(secretBytes);
+    const resourceHash = simulatorHash(gatedResourcePayload);
     this.gatedResourcePayload = gatedResourcePayload;
     await this.instance.initialize(publicKeyBytes, resourceHash);
   }
 
   async addMember(organizerSecret: string, memberSecret: string, memberSalt: string): Promise<string> {
-    const secretBytes = sha256(organizerSecret);
+    const secretBytes = simulatorHash(organizerSecret);
     const commitment = deriveCommitment(memberSecret, memberSalt);
     await this.instance.addMember(secretBytes, commitment);
     return toHex(commitment);
   }
 
   async verifyAccess(memberSecret: string, memberSalt: string, domainSeparator: string = 'GATEKEEP_ACCESS_V1'): Promise<{ success: boolean; nullifierHex: string; unlockedResource: string }> {
-    const secretBytes = sha256(memberSecret);
-    const saltBytes = sha256(memberSalt);
-    const domainBytes = sha256(domainSeparator);
+    const secretBytes = simulatorHash(memberSecret);
+    const saltBytes = simulatorHash(memberSalt);
+    const domainBytes = simulatorHash(domainSeparator);
 
     const witness: MemberWitness = {
       secret: secretBytes,

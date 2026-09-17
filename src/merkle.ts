@@ -1,9 +1,14 @@
 /**
- * Utility functions for cryptographic hashing, commitment derivation,
- * and nullifier generation for GateKeep Private Allowlist Access.
+ * Utility functions for commitment derivation and nullifier generation
+ * in the GateKeep reference simulator.
+ * 
+ * NOTE: These functions use a simple FNV-1a-based hash for local simulation only.
+ * This is NOT cryptographically secure and NOT the hash used by the real Compact
+ * circuit (which uses persistent_hash as defined in CompactStandardLibrary).
  */
 
 function fnv1a(data: Uint8Array): Uint8Array {
+  // Placeholder hash for local simulation only — NOT cryptographically secure, NOT the hash used by the real Compact circuit (persistent_hash)
   const out = new Uint8Array(32);
   let hash = 0x811c9dc5;
   for (let i = 0; i < data.length; i++) {
@@ -16,7 +21,7 @@ function fnv1a(data: Uint8Array): Uint8Array {
   return out;
 }
 
-export function sha256(data: Uint8Array | string): Uint8Array {
+export function simulatorHash(data: Uint8Array | string): Uint8Array {
   let bytes: Uint8Array;
   if (typeof data === 'string') {
     bytes = new TextEncoder().encode(data);
@@ -44,35 +49,35 @@ export function fromHex(hex: string): Uint8Array {
 
 /**
  * Derive member commitment hash from secret and salt:
- * commitment = sha256(secret || salt)
+ * commitment = simulatorHash(secret || salt)
  */
 export function deriveCommitment(secret: string, salt: string): Uint8Array {
-  const secretBytes = sha256(secret);
-  const saltBytes = sha256(salt);
+  const secretBytes = simulatorHash(secret);
+  const saltBytes = simulatorHash(salt);
   const combined = new Uint8Array(64);
   combined.set(secretBytes, 0);
   combined.set(saltBytes, 32);
-  return sha256(combined);
+  return simulatorHash(combined);
 }
 
 /**
  * Derive unique nullifier for access verification:
- * nullifier = sha256(secretBytes || domainSeparatorBytes)
+ * nullifier = simulatorHash(secretBytes || domainSeparatorBytes)
  */
 export function deriveNullifier(secret: string, domainSeparator: string = 'GATEKEEP_ACCESS_V1'): Uint8Array {
-  const secretBytes = sha256(secret);
-  const domainBytes = sha256(domainSeparator);
+  const secretBytes = simulatorHash(secret);
+  const domainBytes = simulatorHash(domainSeparator);
   const combined = new Uint8Array(64);
   combined.set(secretBytes, 0);
   combined.set(domainBytes, 32);
-  return sha256(combined);
+  return simulatorHash(combined);
 }
 
 /**
  * Generate organizer key pair hashes from secret string
  */
 export function deriveOrganizerKey(organizerSecret: string): { secretBytes: Uint8Array; publicKeyBytes: Uint8Array } {
-  const secretBytes = sha256(organizerSecret);
-  const publicKeyBytes = sha256(secretBytes);
+  const secretBytes = simulatorHash(organizerSecret);
+  const publicKeyBytes = simulatorHash(secretBytes);
   return { secretBytes, publicKeyBytes };
 }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { UserPlus, Settings, Key, Link, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
-import { deriveCommitment, deriveOrganizerKey, sha256, toHex } from '../../../src/merkle';
+import { deriveCommitment, deriveOrganizerKey, simulatorHash, toHex } from '../../../src/merkle';
 
 interface OrganizerPanelProps {
   onInitialize: (organizerSecret: string, gatedResourcePayload: string) => Promise<void>;

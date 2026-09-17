@@ -1,9 +1,14 @@
 /**
- * Utility functions for cryptographic hashing, commitment derivation,
- * and nullifier generation for GateKeep Private Allowlist Access.
+ * Utility functions for commitment derivation and nullifier generation
+ * in the GateKeep reference simulator.
+ * 
+ * NOTE: These functions use a simple FNV-1a-based hash for local simulation only.
+ * This is NOT cryptographically secure and NOT the hash used by the real Compact
+ * circuit (which uses persistent_hash as defined in CompactStandardLibrary).
  */
 
 function fnv1a(data: Uint8Array): Uint8Array {
+  // Placeholder hash for local simulation only — NOT cryptographically secure, NOT the hash used by the real Compact circuit (persistent_hash)
   const out = new Uint8Array(32);
   let hash = 0x811c9dc5;
   for (let i = 0; i < data.length; i++) {

@@ -5,16 +5,17 @@
 
  RUN  v2.1.9 C:/Users/Tuf/OneDrive/Desktop/Private Allowlist Access dApp
 
- ✓ tests/gatekeep.test.ts (5 tests) 18ms
+ ✓ tests/allowlist.test.ts (3 tests) 10ms
+ ✓ tests/gatekeep.test.ts (5 tests) 13ms
    ✓ 1. Valid member successfully proves membership and gets gated access
    ✓ 2. Non-member with invalid secret or un-allowlisted witness is rejected
    ✓ 3. Valid member attempting to reuse nullifier a second time is rejected (double-access prevention)
    ✓ 4. Organizer-only access control rejects unauthorized callers trying to add members
    ✓ 5. Public counters increment correctly and commitment root updates
 
- Test Files  1 passed (1)
-      Tests  5 passed (5)
-   Start at  15:34:45
-   Duration  1.33s
+ Test Files  2 passed (2)
+      Tests  8 passed (8)
+   Start at  19:40:44
+   Duration  1.03s
 
-✔ Compact compilation & ZK circuit execution verified on Midnight Network.
+✔ Simulator test suite passed (8/8). Compact circuit compilation not yet performed.

@@ -9,9 +9,9 @@ This verification report documents the independent verification and audit of eve
 | Item # | Verification Item | Status | Evidence & Details |
 | :--- | :--- | :--- | :--- |
 | **1** | **Live Demo URL** | 🛠️ **Fixed** | **History**: Previous placeholder link was returning 404.<br/>**Fix**: Deployed `frontend/` to Vercel connected to `Nandini-Jadhav1/Gatekeep`.<br/>**Verified URL**: [https://gatekeep-midnight.vercel.app](https://gatekeep-midnight.vercel.app)<br/>**HTTP Response**: `200 OK` (Presents `<title>GateKeep — Private Allowlist Access dApp on Midnight</title>`). |
-| **2** | **Contract Address & Explorer** | ✅ **Verified** | **Contract ID**: `0x4f8e3b29c17d92a10b4f62e8315a91d295034c71829e1a2f4c6b8d0e2a4b6c8`<br/>**Explorer URL**: `https://explorer.preprod.midnight.network/contract/0x4f8e3b29c17d92a10b4f62e8315a91d295034c71829e1a2f4c6b8d0e2a4b6c8`<br/>**Network**: Midnight Testnet (Preprod). |
+| **2** | **Contract Address & Explorer** | ⚠️ **Placeholder** | **Contract ID**: `0x4f8e3b29c17d92a10b4f62e8315a91d295034c71829e1a2f4c6b8d0e2a4b6c8` (illustrative - not deployed)<br/>**Status**: Compact circuit not yet compiled/deployed due to Windows toolchain constraints. |
 | **3** | **Test Screenshot Image MIME Type** | ✅ **Verified** | **File**: `docs/test-output.png`<br/>**File Size**: 581,091 bytes (581 KB)<br/>**Header Bytes**: `89 50 4E 47` (`.PNG` binary image format). |
-| **4** | **ZK Circuit Enforcement** | ✅ **Verified** | **Source**: `contracts/GateKeep.compact`<br/>**Circuit**: `verifyAccess` enforces witness validation, commitment check against allowlist root, and nullifier derivation.<br/>**Test Suite**: `tests/gatekeep.test.ts` executes compiled `GateKeepContract` simulator. |
+| **4** | **ZK Circuit Design** | ✅ **Designed** | **Source**: `contracts/GateKeep.compact`<br/>**Circuit Logic**: `verifyAccess` specifies witness validation, commitment check against allowlist root, and nullifier derivation.<br/>**Test Suite**: `tests/gatekeep.test.ts` executes TypeScript reference simulator implementing the Compact contract's state machine. |
 | **5** | **CI Workflow Run** | ✅ **Verified** | **Workflow Path**: `.github/workflows/ci.yml`<br/>**Status**: Passing (`completed` / `success`) on `Nandini-Jadhav1/Gatekeep` `main` branch. |
 
 ---
@@ -75,4 +75,4 @@ export circuit verifyAccess(witness: MemberWitness, domainSeparator: Bytes<32>):
 ```
 
 ### Circuit Execution Confirmation
-The tests call `client.verifyAccess(...)` which invokes `GateKeepContract.prototype.verifyAccess` directly from the compiled Compact TypeScript interface (`contracts/managed/GateKeep/index.ts`). It executes the real state machine rules without any hardcoded test mocks.
+The tests call `client.verifyAccess(...)` which invokes `GateKeepContract.prototype.verifyAccess` from the TypeScript reference simulator (`contracts/managed/GateKeep/index.ts`). This simulator implements the state machine logic specified in the Compact source contract for local testing purposes. **Note:** This is not a compiled ZK circuit - it's a reference implementation that mirrors the Compact contract's behavior for development and testing.

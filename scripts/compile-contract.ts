@@ -60,8 +60,13 @@ const zkConfigJson = JSON.stringify({
 }, null, 2);
 
 const indexTsContent = `/**
- * Generated managed Contract interface for GateKeep.compact
- * Derived directly from Compact source contract: contracts/GateKeep.compact
+ * TypeScript Reference Simulator for GateKeep.compact
+ * 
+ * This is NOT compiled output from the Midnight compactc compiler.
+ * It's a hand-written reference implementation that mirrors the state machine
+ * logic specified in contracts/GateKeep.compact for local testing purposes.
+ * 
+ * Source contract: contracts/GateKeep.compact
  */
 
 export interface MemberWitness {
@@ -94,7 +99,8 @@ function bytesToHex(bytes: Uint8Array): string {
   return hex;
 }
 
-function universalSha256(data: Uint8Array): Uint8Array {
+function simulatorHash(data: Uint8Array): Uint8Array {
+  // Placeholder hash for local simulation only — NOT cryptographically secure, NOT the hash used by the real Compact circuit (persistent_hash)
   const out = new Uint8Array(32);
   let hash = 0x811c9dc5;
   for (let i = 0; i < data.length; i++) {
@@ -121,8 +127,8 @@ export class GateKeepContract implements GateKeepCircuits {
     };
   }
 
-  private sha256(data: Uint8Array): Uint8Array {
-    return universalSha256(data);
+  private hash(data: Uint8Array): Uint8Array {
+    return simulatorHash(data);
   }
 
   async initialize(newOrganizerKey: Uint8Array, resourceHash: Uint8Array): Promise<void> {
@@ -142,7 +148,7 @@ export class GateKeepContract implements GateKeepCircuits {
 
   async addMember(organizerSecret: Uint8Array, commitment: Uint8Array): Promise<void> {
     // Assert organizer secret authorization: require computedKey == organizerPublicKey "Unauthorized: caller is not contract organizer"
-    const computedKey = this.sha256(organizerSecret);
+    const computedKey = this.hash(organizerSecret);
     const keyMatches = computedKey.every((b, idx) => b === this.ledger.organizerPublicKey[idx]);
     if (!keyMatches) {
       throw new Error("Unauthorized: caller is not contract organizer");
@@ -175,7 +181,7 @@ export class GateKeepContract implements GateKeepCircuits {
     const commitmentBuf = new Uint8Array(64);
     commitmentBuf.set(witness.secret, 0);
     commitmentBuf.set(witness.salt, 32);
-    const candidateCommitment = this.sha256(commitmentBuf);
+    const candidateCommitment = this.hash(commitmentBuf);
     const candidateHex = bytesToHex(candidateCommitment);
 
     // 3. require allowedCommitments.member(memberCommitment) "Membership verification failed: Commitment not found in allowlist"
@@ -187,7 +193,7 @@ export class GateKeepContract implements GateKeepCircuits {
     const nullifierBuf = new Uint8Array(64);
     nullifierBuf.set(witness.secret, 0);
     nullifierBuf.set(domainSeparator, 32);
-    const nullifier = this.sha256(nullifierBuf);
+    const nullifier = this.hash(nullifierBuf);
     const nullifierHex = bytesToHex(nullifier);
 
     // 5. require !usedNullifiers.member(nullifier) "Double access rejected: Nullifier has already been claimed"
@@ -219,6 +225,7 @@ export const pureCircuits = {
 `;
 
 const indexJsContent = `// ES Module entrypoint for Vite/Next.js bundlers
+// TypeScript Reference Simulator (not compiled circuit output)
 
 function bytesToHex(bytes) {
   let hex = '';
@@ -322,6 +329,7 @@ export const pureCircuits = {
 `;
 
 const indexCjsContent = `'use strict';
+// TypeScript Reference Simulator (not compiled circuit output)
 
 function bytesToHex(bytes) {
   let hex = '';
@@ -331,7 +339,8 @@ function bytesToHex(bytes) {
   return hex;
 }
 
-function universalSha256(data) {
+function simulatorHash(data) {
+  // Placeholder hash for local simulation only — NOT cryptographically secure
   const out = new Uint8Array(32);
   let hash = 0x811c9dc5;
   for (let i = 0; i < data.length; i++) {
@@ -356,8 +365,8 @@ class GateKeepContract {
     };
   }
 
-  sha256(data) {
-    return universalSha256(data);
+  hash(data) {
+    return simulatorHash(data);
   }
 
   async initialize(newOrganizerKey, resourceHash) {
@@ -476,6 +485,10 @@ for (const dir of targetDirs) {
 }
 
 console.log(`[1/3] Verified Compact source contract: ${contractPath}`);
-console.log(`[2/3] Compiled ZK circuits (circuit.wasm, proving_key, verifying_key) & TS ZK interfaces`);
+console.log(`[2/3] Generated TypeScript reference simulator (not real ZK compilation)`);
 console.log(`[3/3] Generated managed build output at contracts/managed and managed/ directories`);
-console.log('✔ Compact compilation completed with 0 errors.');
+console.log('✔ Simulator generation completed with 0 errors.');
+console.log('');
+console.log('NOTE: This is NOT a real Compact circuit compilation.');
+console.log('The compactc compiler requires Linux/macOS or WSL (not available on native Windows).');
+console.log('Install via: curl --proto \'=https\' --tlsv1.2 -sSf https://install.midnight.network | sh');
