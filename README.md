@@ -20,7 +20,7 @@
 ## Contract Address
 | Network | Status |
 |---------|--------|
-| Preprod | Placeholder: `0x4f8e3b29c17d92a10b4f62e8315a91d295034c71829e1a2f4c6b8d0e2a4b6c8` (not deployed) |
+| Preprod | Placeholder: `0300abc1234567890abcdef1234567890abcdef1234567890abcdef123456789'
 
 ## What This Does
 GateKeep demonstrates a privacy-preserving allowlist system designed for Midnight Network. The Compact contract specifies how users would prove membership without exposing their identity, using cryptographic commitments and unlinkable nullifiers.
